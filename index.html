@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<title>Lee 的口說教練</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1d1d1b;--mut:#6b6a65;--line:#e3e1da;--acc:#1f6f5c;--acc2:#e7f2ee;--warn:#a1462b;--warn2:#fbece6;--ok:#2d7a3a}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#21211f;--ink:#ecebe6;--mut:#9d9b94;--line:#34332f;--acc:#5fc3a6;--acc2:#1d302a;--warn:#f08b6a;--warn2:#3a241c;--ok:#7bd08a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC",sans-serif;padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
+.wrap{max-width:720px;margin:auto}
+.top{display:flex;align-items:center;gap:8px}.top h1{font-size:17px;margin:0;flex:1}
+main{padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px}
+h2{font-size:16px;margin:0 0 8px}
+label{font-size:13px;color:var(--mut);display:block;margin-top:8px}
+input,select,textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--card);color:var(--ink)}
+textarea{min-height:60px;resize:vertical}
+button{font:inherit;font-size:15px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:9px 12px;cursor:pointer;min-height:42px}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+@media (prefers-color-scheme:dark){button.pri{color:#0f1e19}}
+button.on{background:var(--acc2);border-color:var(--acc);color:var(--acc);font-weight:600}
+button:disabled{opacity:.45}
+button.sm{min-height:32px;padding:4px 10px;font-size:13px;border-radius:8px;white-space:nowrap}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grow{flex:1 1 0;min-width:0}
+.mut{color:var(--mut);font-size:13px}
+.seg{display:flex;gap:6px}.seg button{flex:1}
+.msg{border-radius:12px;padding:9px 12px;margin:8px 0;max-width:92%;white-space:pre-wrap;word-break:break-word}
+.msg.t{background:var(--acc2)}.msg.u{background:var(--card);border:1px solid var(--line);margin-left:auto}
+.msg .who{font-size:12px;color:var(--mut);margin-bottom:2px}
+.sys{font-size:13px;color:var(--mut);text-align:center;margin:6px 0}
+.diff{background:var(--warn2);border-radius:10px;padding:8px 10px;margin:6px 0;font-size:14px}
+.w-ok{color:var(--ok)}.w-miss{color:var(--warn);text-decoration:underline wavy}.w-extra{color:var(--mut);text-decoration:line-through}
+.dock{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+.mic{width:100%;min-height:58px;font-size:17px;border-radius:14px;user-select:none;-webkit-user-select:none;touch-action:none}
+.mic.live{background:#c0392b;border-color:#c0392b;color:#fff}
+.meter{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:6px}.meter i{display:block;height:100%;width:0;background:var(--acc);transition:width .08s}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#999;margin-right:6px}
+.dot.ok{background:#2d9a4a}.dot.wait{background:#d79b00}.dot.err{background:#c0392b}
+.hide{display:none!important}
+details summary{cursor:pointer;color:var(--mut);font-size:14px}
+</style>
+</head>
+<body>
+<header><div class="wrap top"><h1>Lee 的口說教練</h1><span class="mut"><span class="dot" id="dot"></span><span id="stat">未連線</span></span><button class="sm hide" id="btnStop2">下課</button></div></header>
+<main class="wrap">
+
+  <section class="card" id="keyCard">
+    <h2>第一次使用：貼上 Gemini API 金鑰</h2>
+    <p class="mut" style="margin-top:0">金鑰只存在這台裝置的瀏覽器裡，不會傳到別處（只用來連 Google）。換手機或電腦要再貼一次。</p>
+    <input id="key" type="password" autocomplete="off" placeholder="AQ. 或 AIza 開頭的金鑰">
+    <div class="row" style="margin-top:8px"><button class="pri grow" id="saveKey">儲存</button></div>
+  </section>
+
+  <section class="card" id="setCard">
+    <h2>今天練什麼</h2>
+    <div class="seg" id="modeSeg">
+      <button data-mode="shadow" class="on">跟讀糾正</button>
+      <button data-mode="role">情境對話</button>
+      <button data-mode="free">自由聊天</button>
+    </div>
+    <label>情境／主題（可空白）</label>
+    <input id="topic" placeholder="例：速食店點餐、換配料、問加購是什麼">
+    <div id="shadowOpts">
+      <label>要練的句子（可空白，空白就由老師出題；一行一句）</label>
+      <textarea id="sentences" placeholder="I'll call you later.&#10;Can I get the burger without onions?"></textarea>
+    </div>
+    <details style="margin-top:10px"><summary>進階設定</summary>
+      <label>說話方式</label>
+      <select id="talk"><option value="ptt">按住說話（不戴耳機也穩定）</option><option value="hands">免持對話（建議戴耳機）</option></select>
+      <label>老師聲音</label>
+      <select id="voice"><option>Puck</option><option>Charon</option><option>Kore</option><option>Fenrir</option><option>Aoede</option><option>Leda</option><option>Orus</option><option>Zephyr</option></select>
+      <label>模型</label>
+      <input id="model" value="gemini-3.8-live">
+      <p class="mut">模型被停用時改這裡，例如 gemini-3-flash-live（以 AI Studio 額度頁列出的 Live 模型名稱為準）。</p>
+      <div class="row"><button class="sm" id="clearKey">刪除本機金鑰</button></div>
+    </details>
+    <div class="row" style="margin-top:12px"><button class="pri grow" id="btnStart">開始上課</button><button class="grow hide" id="btnStop">下課</button></div>
+  </section>
+
+  <section class="card hide" id="chatCard">
+    <div class="row"><h2 class="grow" style="margin:0">對話紀錄</h2><button class="sm" id="btnCopy">複製紀錄</button></div>
+    <div id="log"></div>
+  </section>
+</main>
+
+<div class="dock hide" id="dock"><div class="wrap">
+  <button class="mic" id="mic">按住說話</button>
+  <div class="meter"><i id="lvl"></i></div>
+  <div class="row" style="margin-top:6px">
+    <input id="txt" class="grow" placeholder="也可以打字（中文問也行）">
+    <button class="sm" id="btnTxt">送出</button>
+    <button class="sm" id="btnAgain">再一句</button>
+  </div>
+</div></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- settings ---------- */
+const CFG=Object.assign({mode:"shadow",topic:"",sentences:"",talk:"ptt",voice:"Puck",model:"gemini-3.8-live"},LS.get("coach_cfg",{}));
+function saveCfg(){LS.set("coach_cfg",CFG)}
+$("#topic").value=CFG.topic;$("#sentences").value=CFG.sentences;$("#talk").value=CFG.talk;$("#voice").value=CFG.voice;$("#model").value=CFG.model;
+function setMode(m){CFG.mode=m;$$("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));$("#shadowOpts").classList.toggle("hide",m!=="shadow");saveCfg()}
+setMode(CFG.mode);
+$$("#modeSeg button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+["topic","sentences","talk","voice","model"].forEach(id=>$("#"+id).addEventListener("change",e=>{CFG[id]=e.target.value.trim()||CFG[id];saveCfg();if(id==="talk")updateMicLabel()}));
+function refreshKeyCard(){const has=!!LS.get("coach_key","");$("#keyCard").classList.toggle("hide",has)}
+$("#saveKey").onclick=()=>{let k=$("#key").value.trim();k=k.replace(/\s+/g,"");if(!/^(AQ\.|AIza)[\w.\-]{20,}$/.test(k)){alert2("金鑰格式不對：應該是 AQ. 或 AIza 開頭的一長串，請重新複製。");return}LS.set("coach_key",k);$("#key").value="";refreshKeyCard()};
+$("#clearKey").onclick=()=>{LS.del("coach_key");refreshKeyCard()};
+refreshKeyCard();
+function alert2(m){sys(m,true)}
+
+/* ---------- prompts ---------- */
+const BASE=`You are Lee's English speaking coach. Lee is an adult Taiwanese learner (around CEFR A2-B1, small vocabulary), a construction site manager. Speak clear, natural American English at a slightly slow pace. Never use the name "Kevin".
+HONESTY RULES: Never open with praise. No "great", "perfect", "excellent" unless every score is 5. Be specific and direct.
+LANGUAGE: Teach in English. If Lee speaks or types Chinese, answer that part briefly in Traditional Chinese (台灣用語), then return to English.
+PRONUNCIATION FEEDBACK FORMAT (use whenever Lee repeats a target sentence):
+Scores: intonation X/5, stress X/5, speed X/5, pauses X/5, linking X/5.
+Then for every score under 5: the exact word or spot, what you heard, and what it should sound like.
+If any word sounded like a different word (e.g. "call you later" heard as "calculator"), say so explicitly.
+Then say "Repeat after me:" followed by the sentence, spoken naturally. Wait for Lee.
+When you give Lee a NEW sentence to read, always say "Repeat after me:" right before it.`;
+function buildPrompt(){
+  const topic=CFG.topic?`Topic/scenario: ${CFG.topic}.`:"";
+  if(CFG.mode==="shadow"){
+    const list=CFG.sentences.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+    return BASE+`\nMODE: shadowing drill. ${topic}\n`+(list.length?`Use these sentences in order, one at a time:\n${list.map((s,i)=>`${i+1}. ${s}`).join("\n")}\nAfter the list is done, make similar sentences on the same topic.`:`Choose short, useful everyday sentences (6-12 words), gradually harder.`)+`\nMove to the next sentence only when all scores are 4+ or after 3 tries; when moving on, give one phrase variation Lee could also use.`;
+  }
+  if(CFG.mode==="role")return BASE+`\nMODE: role-play. ${topic||"Scenario: ordering at a fast-food counter, asking to swap ingredients and asking what add-ons are."}\nYou play the other person and keep the conversation going with short turns. After each Lee turn, step out of role in ONE short line: fix grammar/word choice if needed, and give the single most important pronunciation note (stress, intonation, linking, speed, or a misheard word). Every 3 turns, offer 2 other natural ways to say something Lee said, then say "Repeat after me:" for one of them.`;
+  return BASE+`\nMODE: free conversation. ${topic}\nChat naturally, ask follow-up questions. After each Lee turn add one short correction line (grammar or pronunciation) only if needed.`;
+}
+
+/* ---------- log ---------- */
+const LOG=[];let cur={t:null,u:null};
+function addMsg(who,text){
+  const box=$("#log");const el=document.createElement("div");el.className="msg "+(who==="teacher"?"t":"u");
+  el.innerHTML=`<div class="who">${who==="teacher"?"老師":"你（辨識結果）"}</div><span></span>`;
+  el.querySelector("span").textContent=text;box.appendChild(el);el.scrollIntoView({block:"nearest",behavior:"smooth"});
+  const rec={who,text,el};LOG.push(rec);return rec;
+}
+function appendTo(kind,delta){
+  if(!delta)return;
+  if(!cur[kind]){cur[kind]=addMsg(kind==="t"?"teacher":"me","");}
+  cur[kind].text+=delta;cur[kind].el.querySelector("span").textContent=cur[kind].text;
+  cur[kind].el.scrollIntoView({block:"nearest"});
+}
+function sys(m,warn){const d=document.createElement("div");d.className="sys";d.style.color=warn?"var(--warn)":"";d.textContent=m;$("#chatCard").classList.remove("hide");$("#log").appendChild(d);d.scrollIntoView({block:"nearest"})}
+$("#btnCopy").onclick=async()=>{const t=LOG.map(r=>(r.who==="teacher"?"Teacher: ":"Lee: ")+r.text.trim()).join("\n");try{await navigator.clipboard.writeText(t);sys("已複製，可以貼給 Claude 整理成筆記。")}catch(e){sys("複製失敗，請長按紀錄自行選取。",true)}};
+
+/* ---------- target sentence diff ---------- */
+let target="",expectRepeat=false;
+const NUM={"0":"zero","1":"one","2":"two","3":"three","4":"four","5":"five","6":"six","7":"seven","8":"eight","9":"nine","10":"ten","11":"eleven","12":"twelve"};
+const norm=s=>String(s||"").toLowerCase().replace(/[’‘`]/g,"'").replace(/'/g,"").replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+const toks=s=>norm(s).split(" ").filter(Boolean).map(w=>NUM[w]||w);
+function diffWords(t,h){
+  const a=toks(t),b0=toks(h),b=[];
+  for(let j=0;j<b0.length;j++){if(j+1<b0.length&&!a.includes(b0[j])&&a.includes(b0[j]+b0[j+1])){b.push(b0[j]+b0[j+1]);j++}else b.push(b0[j])}
+  const n=a.length,m=b.length,dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+  const out=[];let i=0,j=0;
+  while(i<n||j<m){if(i<n&&j<m&&a[i]===b[j]){out.push(["ok",a[i]]);i++;j++}else if(j<m&&(i>=n||dp[i][j+1]>=dp[i+1][j])){out.push(["extra",b[j]]);j++}else{out.push(["miss",a[i]]);i++}}
+  return {out,score:n?Math.round(out.filter(x=>x[0]==="ok").length/n*100):0};
+}
+function extractTarget(text){
+  const m=String(text).match(/repeat after me[:,.]?\s*["“]?([^"”\n]+?[.?!])/i);
+  if(m){const s=m[1].trim();if(s.split(/\s+/).length>=2){target=s;expectRepeat=true}}
+}
+function showDiff(heard){
+  if(!target||!expectRepeat)return;
+  const hb=toks(heard);if(!hb.length)return;
+  expectRepeat=false; // compare only the attempt right after "Repeat after me" 
+  const d=diffWords(target,heard);
+  const el=document.createElement("div");el.className="diff";
+  el.innerHTML=`<b>辨識比對 ${d.score}%</b>　目標：${esc(target)}<br>`+d.out.map(([k,w])=>`<span class="w-${k}">${esc(w)}</span>`).join(" ")+(d.score<100?`<div class="mut">紅底線＝沒被聽出來；刪除線＝被聽成的字。這是語音辨識結果，和老師的評語互相對照。</div>`:"");
+  $("#log").appendChild(el);el.scrollIntoView({block:"nearest"});
+}
+
+/* ---------- audio out (24k PCM) ---------- */
+let outCtx=null,playHead=0;const playing=new Set();
+function ensureOut(){if(!outCtx){const AC=window.AudioContext||window.webkitAudioContext;outCtx=new AC()}if(outCtx.state==="suspended")outCtx.resume();return outCtx}
+function playPCM(b64){
+  const ctx=ensureOut();const bin=atob(b64);const len=bin.length>>1;if(!len)return;
+  const buf=ctx.createBuffer(1,len,24000);const ch=buf.getChannelData(0);
+  for(let i=0;i<len;i++){let v=bin.charCodeAt(i*2)|(bin.charCodeAt(i*2+1)<<8);if(v>=32768)v-=65536;ch[i]=v/32768}
+  const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);
+  playHead=Math.max(playHead,ctx.currentTime+0.05);src.start(playHead);playHead+=buf.duration;
+  playing.add(src);src.onended=()=>playing.delete(src);
+}
+function stopPlayback(){playing.forEach(s=>{try{s.stop()}catch(e){}});playing.clear();if(outCtx)playHead=outCtx.currentTime}
+const teacherSpeaking=()=>outCtx&&playHead>outCtx.currentTime+0.02;
+
+/* ---------- audio in (16k PCM) ---------- */
+let inCtx=null,stream=null,node=null,sending=false;
+const WORKLET=`class P extends AudioWorkletProcessor{constructor(){super();this.buf=[];this.ratio=sampleRate/16000;this.pos=0;}
+process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;let peak=0;
+for(let i=0;i<ch.length;i++){const a=Math.abs(ch[i]);if(a>peak)peak=a}
+// linear resample to 16k
+const out=[];while(this.pos<ch.length){const i=Math.floor(this.pos),f=this.pos-i;const s=ch[i]*(1-f)+(ch[i+1]!==undefined?ch[i+1]:ch[i])*f;out.push(s);this.pos+=this.ratio}
+this.pos-=ch.length;for(const s of out)this.buf.push(Math.max(-1,Math.min(1,s)));
+if(this.buf.length>=1600){const n=this.buf.length,pcm=new Int16Array(n);for(let i=0;i<n;i++)pcm[i]=this.buf[i]*32767;this.buf=[];this.port.postMessage({pcm:pcm.buffer,peak},[pcm.buffer])}
+else this.port.postMessage({peak});return true}}
+registerProcessor("pcm16k",P);`;
+async function ensureMic(){
+  if(node)return true;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+  }catch(e){sys("拿不到麥克風權限："+(e.message||e.name)+"。請在瀏覽器設定允許這個網站使用麥克風。",true);return false}
+  const AC=window.AudioContext||window.webkitAudioContext;inCtx=new AC();
+  const url=URL.createObjectURL(new Blob([WORKLET],{type:"application/javascript"}));
+  await inCtx.audioWorklet.addModule(url);
+  const src=inCtx.createMediaStreamSource(stream);node=new AudioWorkletNode(inCtx,"pcm16k");
+  node.port.onmessage=e=>{
+    const {pcm,peak}=e.data;$("#lvl").style.width=Math.min(100,peak*160)+"%";
+    if(pcm&&sending&&ws&&ws.readyState===1){
+      if(CFG.talk==="hands"&&teacherSpeaking()&&peak<0.08)return; // reduce echo self-interrupt
+      ws.send(JSON.stringify({realtimeInput:{audio:{data:b64(pcm),mimeType:"audio/pcm;rate=16000"}}}));
+    }
+  };
+  src.connect(node);// worklet needs no output connection on most browsers; keep a silent sink for Safari
+  const g=inCtx.createGain();g.gain.value=0;node.connect(g);g.connect(inCtx.destination);
+  return true;
+}
+function b64(ab){const u=new Uint8Array(ab);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
+function releaseMic(){try{stream&&stream.getTracks().forEach(t=>t.stop())}catch(e){}try{inCtx&&inCtx.close()}catch(e){}stream=null;inCtx=null;node=null;sending=false}
+
+/* ---------- websocket session ---------- */
+let ws=null,want=false,handle=null,retries=0,setupDone=false;
+const WS_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=";
+function status(t,k){$("#stat").textContent=t;$("#dot").className="dot "+(k||"")}
+function connect(){
+  const key=LS.get("coach_key","");if(!key){refreshKeyCard();sys("請先貼上金鑰。",true);return}
+  setupDone=false;status("連線中…","wait");
+  ws=new WebSocket(WS_URL+encodeURIComponent(key));
+  ws.onopen=()=>{
+    const setup={model:"models/"+CFG.model,
+      generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:CFG.voice}}}},
+      systemInstruction:{parts:[{text:buildPrompt()}]},
+      inputAudioTranscription:{},outputAudioTranscription:{},
+      contextWindowCompression:{slidingWindow:{}},
+      sessionResumption:handle?{handle}:{}};
+    if(CFG.talk==="ptt")setup.realtimeInputConfig={automaticActivityDetection:{disabled:true}};
+    ws.send(JSON.stringify({setup}));
+  };
+  ws.onmessage=async ev=>{
+    let txt=typeof ev.data==="string"?ev.data:await ev.data.text();let m;try{m=JSON.parse(txt)}catch(e){return}
+    if(m.setupComplete){
+      setupDone=true;setupDoneEver=true;retries=0;status("上課中","ok");
+      if(!resumed){resumed=true;sendText(CFG.mode==="shadow"?"Hi, I'm ready. Please start.":"Hi! Let's start.",true)}
+      return;
+    }
+    if(m.sessionResumptionUpdate&&m.sessionResumptionUpdate.resumable&&m.sessionResumptionUpdate.newHandle)handle=m.sessionResumptionUpdate.newHandle;
+    if(m.goAway){sys("連線即將到期，自動接續中…")}
+    const sc=m.serverContent;if(!sc)return;
+    if(sc.interrupted){stopPlayback();cur.t=null}
+    if(sc.inputTranscription&&sc.inputTranscription.text){cur.t=null;appendTo("u",sc.inputTranscription.text)}
+    if(sc.outputTranscription&&sc.outputTranscription.text){if(cur.u){finishUser()}appendTo("t",sc.outputTranscription.text)}
+    if(sc.modelTurn&&sc.modelTurn.parts)for(const p of sc.modelTurn.parts){if(p.inlineData&&p.inlineData.data&&/audio/.test(p.inlineData.mimeType||"audio"))playPCM(p.inlineData.data);else if(p.text&&!sc.outputTranscription){/* text parts are thoughts or text; ignore */}}
+    if(sc.turnComplete){if(cur.u)finishUser();if(cur.t){extractTarget(cur.t.text)}cur.t=null}
+  };
+  ws.onerror=()=>{};
+  ws.onclose=ev=>{
+    setupDone=false;sending=false;setMicUI(false);
+    if(!want){status("未連線");return}
+    const reason=ev.reason||"";
+    if(/API key|PERMISSION|invalid/i.test(reason)||ev.code===1008&&/key/i.test(reason)){status("金鑰錯誤","err");sys("金鑰無效或沒有權限："+reason,true);want=false;stopUI();return}
+    if(/not found|not supported|model/i.test(reason)&&!setupDoneEver){status("模型錯誤","err");sys("模型「"+CFG.model+"」無法使用："+reason+"。請到進階設定改模型名稱。",true);want=false;stopUI();return}
+    if(/quota|RESOURCE_EXHAUSTED|rate/i.test(reason)){status("額度用完","err");sys("免費額度暫時用完："+reason+"。等一下再試。",true);want=false;stopUI();return}
+    if(retries>=4){status("連線失敗","err");sys("一直連不上（"+ev.code+" "+reason+"）。檢查網路後按「開始上課」重試。",true);want=false;stopUI();return}
+    retries++;status("重新連線…","wait");setTimeout(()=>want&&connect(),800*retries);
+  };
+}
+let resumed=false,setupDoneEver=false;
+function finishUser(){const u=cur.u;cur.u=null;if(u)showDiff(u.text)}
+function sendText(t,silent){
+  if(!ws||ws.readyState!==1||!setupDone){sys("還沒連上，稍等。",true);return}
+  if(!silent)addMsg("me",t);
+  stopPlayback();
+  ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:t}]}],turnComplete:true}}));
+}
+
+/* ---------- UI flow ---------- */
+async function start(){
+  CFG.topic=$("#topic").value.trim();CFG.sentences=$("#sentences").value;CFG.model=$("#model").value.trim()||"gemini-3.8-live";CFG.voice=$("#voice").value;CFG.talk=$("#talk").value;saveCfg();
+  if(!LS.get("coach_key","")){refreshKeyCard();return}
+  ensureOut();
+  if(!await ensureMic())return;
+  $("#log").innerHTML="";LOG.length=0;cur={t:null,u:null};target="";handle=null;resumed=false;retries=0;
+  want=true;$("#setCard").classList.add("hide");$("#btnStop2").classList.remove("hide");$("#chatCard").classList.remove("hide");$("#dock").classList.remove("hide");$("#btnStart").classList.add("hide");$("#btnStop").classList.remove("hide");
+  setupDoneEver=false;updateMicLabel();connect();
+}
+function stopUI(){$("#setCard").classList.remove("hide");$("#btnStop2").classList.add("hide");$("#btnStart").classList.remove("hide");$("#btnStop").classList.add("hide");$("#dock").classList.add("hide");releaseMic()}
+function stop(){want=false;stopPlayback();try{ws&&ws.close()}catch(e){}stopUI();status("未連線");sys("下課。可以按「複製紀錄」把今天的內容貼給 Claude 整理。")}
+$("#btnStart").onclick=start;$("#btnStop").onclick=stop;$("#btnStop2").onclick=stop;
+$("#btnTxt").onclick=()=>{const t=$("#txt").value.trim();if(!t)return;$("#txt").value="";sendText(t)};
+$("#txt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();$("#btnTxt").click()}});
+$("#btnAgain").onclick=()=>sendText(CFG.mode==="shadow"?"Next sentence, please.":"Please continue.",false);
+
+function updateMicLabel(){setMicUI(sending)}
+function setMicUI(on){const b=$("#mic");b.classList.toggle("live",on);b.textContent=CFG.talk==="ptt"?(on?"放開＝說完":"按住說話"):(on?"🎙 收音中（點一下暫停）":"點一下開始說話")}
+function micDown(){
+  if(!setupDone)return;
+  stopPlayback();
+  if(CFG.talk==="ptt"){sending=true;ws.send(JSON.stringify({realtimeInput:{activityStart:{}}}))}
+  else{sending=!sending;if(!sending&&ws&&ws.readyState===1)ws.send(JSON.stringify({realtimeInput:{audioStreamEnd:true}}))}
+  setMicUI(sending);
+}
+function micUp(){
+  if(CFG.talk!=="ptt"||!sending)return;
+  // let the last ~100ms chunk flush, then mark end of speech
+  setTimeout(()=>{sending=false;setMicUI(false);if(ws&&ws.readyState===1)ws.send(JSON.stringify({realtimeInput:{activityEnd:{}}}))},150);
+}
+const mic=$("#mic");
+mic.addEventListener("pointerdown",e=>{e.preventDefault();try{mic.setPointerCapture(e.pointerId)}catch(_){};micDown()});
+mic.addEventListener("pointerup",e=>{e.preventDefault();micUp()});
+mic.addEventListener("pointercancel",micUp);
+mic.addEventListener("contextmenu",e=>e.preventDefault());
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&sending&&CFG.talk==="ptt")micUp()});
+if(!window.isSecureContext)sys("這個頁面需要用 https 開啟才能使用麥克風。",true);
+</script>
+</body>
+</html>
