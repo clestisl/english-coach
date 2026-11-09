@@ -41,6 +41,8 @@ button.sm{min-height:32px;padding:4px 10px;font-size:13px;border-radius:8px;whit
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#999;margin-right:6px}
 .dot.ok{background:#2d9a4a}.dot.wait{background:#d79b00}.dot.err{background:#c0392b}
 .hide{display:none!important}
+.veilpart{filter:blur(6px);cursor:pointer;transition:filter .2s}
+.banner{background:var(--acc2);border-radius:10px;padding:8px 10px;font-size:14px;margin-bottom:10px}
 details summary{cursor:pointer;color:var(--mut);font-size:14px}
 </style>
 </head>
@@ -69,6 +71,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px}
       <textarea id="sentences" placeholder="I'll call you later.&#10;Can I get the burger without onions?"></textarea>
     </div>
     <details style="margin-top:10px"><summary>進階設定</summary>
+      <label><input type="checkbox" id="blind" style="width:auto"> 盲跟讀：老師的句子先遮住，念完才顯示（點一下也能先看）</label>
       <label>說話方式</label>
       <select id="talk"><option value="ptt">按住說話（不戴耳機也穩定）</option><option value="hands">免持對話（建議戴耳機）</option></select>
       <label>老師聲音</label>
@@ -104,9 +107,17 @@ const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.par
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 /* ---------- settings ---------- */
-const CFG=Object.assign({mode:"shadow",topic:"",sentences:"",talk:"ptt",voice:"Puck",model:"gemini-3.8-live"},LS.get("coach_cfg",{}));
+const CFG=Object.assign({mode:"shadow",topic:"",sentences:"",talk:"ptt",voice:"Puck",model:"gemini-3.8-live",blind:false},LS.get("coach_cfg",{}));
 function saveCfg(){LS.set("coach_cfg",CFG)}
-$("#topic").value=CFG.topic;$("#sentences").value=CFG.sentences;$("#talk").value=CFG.talk;$("#voice").value=CFG.voice;$("#model").value=CFG.model;
+(function(){try{const q=new URLSearchParams(location.search);let n=0;
+  if(q.get("topic"))CFG.topic=q.get("topic");
+  if(q.get("s")){const list=q.get("s").split("|").map(x=>x.trim()).filter(Boolean);CFG.sentences=list.join("\n");n=list.length;CFG.mode="shadow"}
+  if(["shadow","role","free"].includes(q.get("mode")))CFG.mode=q.get("mode");
+  if(n||q.get("topic")){saveCfg();window.__fromLib=n;history.replaceState(null,"",location.pathname)}
+}catch(e){}})();
+$("#blind").checked=!!CFG.blind;$("#blind").onchange=e=>{CFG.blind=e.target.checked;saveCfg()};
+$("#topic").value=CFG.topic;$("#sentences").value=CFG.sentences;
+if(window.__fromLib){const b=document.createElement("div");b.className="banner";b.textContent=`已從聽力庫載入 ${window.__fromLib} 句關鍵句，直接按「開始上課」。`;$("#setCard").prepend(b)}$("#talk").value=CFG.talk;$("#voice").value=CFG.voice;$("#model").value=CFG.model;
 function setMode(m){CFG.mode=m;$$("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));$("#shadowOpts").classList.toggle("hide",m!=="shadow");saveCfg()}
 setMode(CFG.mode);
 $$("#modeSeg button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
@@ -121,10 +132,15 @@ function alert2(m){sys(m,true)}
 const BASE=`You are Lee's English speaking coach. Lee is an adult Taiwanese learner (around CEFR A2-B1, small vocabulary), a construction site manager. Speak clear, natural American English at a slightly slow pace. Never use the name "Kevin".
 HONESTY RULES: Never open with praise. No "great", "perfect", "excellent" unless every score is 5. Be specific and direct.
 LANGUAGE: Teach in English. If Lee speaks or types Chinese, answer that part briefly in Traditional Chinese (台灣用語), then return to English.
+CONSTRUCTION GLOSSARY (Taiwan site terms -> correct English; never translate 計價 as "pricing"):
+計價/估驗計價 = progress payment / payment application (interim valuation); 追加減 = change orders (variations), 追加 = addition, 追減 = deduction; 結算 = final account / final settlement; 業主 = client / owner; 分包/協力廠商 = subcontractor; 會議記錄 = meeting minutes; 請購單 = purchase requisition (PR); 報價 = quotation; 試車 = commissioning; 驗收 = acceptance inspection; 缺失 = punch list items / defects; 施工圖 = shop drawings; 竣工圖 = as-built drawings; 工期 = construction schedule; 機電 = MEP; 無塵室 = cleanroom.
+If you are not sure of a Taiwan construction term, say so and give the closest options instead of guessing.
+DO NOT INVENT: if Lee's sentence is cut off, ask him to finish it; do not complete it with facts he did not say.
 PRONUNCIATION FEEDBACK FORMAT (use whenever Lee repeats a target sentence):
 Scores: intonation X/5, stress X/5, speed X/5, pauses X/5, linking X/5.
 Then for every score under 5: the exact word or spot, what you heard, and what it should sound like.
 If any word sounded like a different word (e.g. "call you later" heard as "calculator"), say so explicitly.
+WORD CHECK (mandatory, before scores): compare what Lee said with the target sentence word by word. List every missing, changed, or extra word (e.g. "subcontracting" -> "some contracting", "our documents" -> "our this documents"). If ANY word differs, no score may be 5 and you must ask him to repeat. Never say "perfect", "spot on" or "excellent" unless the word check found zero differences.
 Then say "Repeat after me:" followed by the sentence, spoken naturally. Wait for Lee.
 When you give Lee a NEW sentence to read, always say "Repeat after me:" right before it.`;
 function buildPrompt(){
@@ -143,6 +159,7 @@ function addMsg(who,text){
   const box=$("#log");const el=document.createElement("div");el.className="msg "+(who==="teacher"?"t":"u");
   el.innerHTML=`<div class="who">${who==="teacher"?"老師":"你（辨識結果）"}</div><span></span>`;
   el.querySelector("span").textContent=text;box.appendChild(el);el.scrollIntoView({block:"nearest",behavior:"smooth"});
+  if(who==="me")$$(".veilpart").forEach(x=>x.classList.remove("veilpart"));
   const rec={who,text,el};LOG.push(rec);return rec;
 }
 function appendTo(kind,delta){
@@ -152,7 +169,7 @@ function appendTo(kind,delta){
   cur[kind].el.scrollIntoView({block:"nearest"});
 }
 function sys(m,warn){const d=document.createElement("div");d.className="sys";d.style.color=warn?"var(--warn)":"";d.textContent=m;$("#chatCard").classList.remove("hide");$("#log").appendChild(d);d.scrollIntoView({block:"nearest"})}
-$("#btnCopy").onclick=async()=>{const t=LOG.map(r=>(r.who==="teacher"?"Teacher: ":"Lee: ")+r.text.trim()).join("\n");try{await navigator.clipboard.writeText(t);sys("已複製，可以貼給 Claude 整理成筆記。")}catch(e){sys("複製失敗，請長按紀錄自行選取。",true)}};
+$("#btnCopy").onclick=async()=>{const t=LOG.map(r=>r.who==="diff"?r.text:(r.who==="teacher"?"Teacher: ":"Lee: ")+r.text.trim()).join("\n");try{await navigator.clipboard.writeText(t);sys("已複製，可以貼給 Claude 整理成筆記。")}catch(e){sys("複製失敗，請長按紀錄自行選取。",true)}};
 
 /* ---------- target sentence diff ---------- */
 let target="",expectRepeat=false;
@@ -168,6 +185,12 @@ function diffWords(t,h){
   while(i<n||j<m){if(i<n&&j<m&&a[i]===b[j]){out.push(["ok",a[i]]);i++;j++}else if(j<m&&(i>=n||dp[i][j+1]>=dp[i+1][j])){out.push(["extra",b[j]]);j++}else{out.push(["miss",a[i]]);i++}}
   return {out,score:n?Math.round(out.filter(x=>x[0]==="ok").length/n*100):0};
 }
+function veilTarget(rec){
+  const sp=rec.el.querySelector("span"),t=rec.text,i=t.search(/repeat after me/i);if(i<0)return;
+  const j=t.indexOf(":",i)>-1?t.indexOf(":",i)+1:i+15;
+  sp.textContent="";sp.append(document.createTextNode(t.slice(0,j)+" "));
+  const v=document.createElement("span");v.className="veilpart";v.textContent=t.slice(j).trim();v.title="點一下先看";v.onclick=()=>v.classList.remove("veilpart");sp.append(v);
+}
 function extractTarget(text){
   const m=String(text).match(/repeat after me[:,.]?\s*["“]?([^"”\n]+?[.?!])/i);
   if(m){const s=m[1].trim();if(s.split(/\s+/).length>=2){target=s;expectRepeat=true}}
@@ -180,6 +203,7 @@ function showDiff(heard){
   const el=document.createElement("div");el.className="diff";
   el.innerHTML=`<b>辨識比對 ${d.score}%</b>　目標：${esc(target)}<br>`+d.out.map(([k,w])=>`<span class="w-${k}">${esc(w)}</span>`).join(" ")+(d.score<100?`<div class="mut">紅底線＝沒被聽出來；刪除線＝被聽成的字。這是語音辨識結果，和老師的評語互相對照。</div>`:"");
   $("#log").appendChild(el);el.scrollIntoView({block:"nearest"});
+  LOG.push({who:"diff",text:`[辨識比對 ${d.score}%] 目標：${target}｜聽到：${heard.trim()}｜漏掉：${d.out.filter(x=>x[0]==="miss").map(x=>x[1]).join(" ")||"無"}｜多出：${d.out.filter(x=>x[0]==="extra").map(x=>x[1]).join(" ")||"無"}`,el});
 }
 
 /* ---------- audio out (24k PCM) ---------- */
@@ -262,7 +286,7 @@ function connect(){
     if(sc.inputTranscription&&sc.inputTranscription.text){cur.t=null;appendTo("u",sc.inputTranscription.text)}
     if(sc.outputTranscription&&sc.outputTranscription.text){if(cur.u){finishUser()}appendTo("t",sc.outputTranscription.text)}
     if(sc.modelTurn&&sc.modelTurn.parts)for(const p of sc.modelTurn.parts){if(p.inlineData&&p.inlineData.data&&/audio/.test(p.inlineData.mimeType||"audio"))playPCM(p.inlineData.data);else if(p.text&&!sc.outputTranscription){/* text parts are thoughts or text; ignore */}}
-    if(sc.turnComplete){if(cur.u)finishUser();if(cur.t){extractTarget(cur.t.text)}cur.t=null}
+    if(sc.turnComplete){if(cur.u)finishUser();if(cur.t){extractTarget(cur.t.text);if(CFG.blind)veilTarget(cur.t)}cur.t=null}
   };
   ws.onerror=()=>{};
   ws.onclose=ev=>{
