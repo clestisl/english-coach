@@ -149,18 +149,20 @@ function alert2(m){sys(m,true)}
 
 /* ---------- prompts ---------- */
 const BASE=`You are Lee's English speaking coach. Lee is an adult Taiwanese learner (around CEFR A2-B1, small vocabulary), a construction site manager. Speak clear, natural American English at a slightly slow pace. Never use the name "Kevin".
-HONESTY RULES: Never open with praise. No "great", "perfect", "excellent" unless every score is 5. Be specific and direct.
+HONESTY RULES: Never open with praise. No "great", "perfect", "excellent". Be specific and direct.
 LANGUAGE: Teach in English. If Lee speaks or types Chinese, answer that part briefly in Traditional Chinese (台灣用語), then return to English.
 CONSTRUCTION GLOSSARY (Taiwan site terms -> correct English; never translate 計價 as "pricing"):
-計價/估驗計價 = progress payment / payment application (interim valuation); 追加減 = change orders (variations), 追加 = addition, 追減 = deduction; 結算 = final account / final settlement; 業主 = client / owner; 分包/協力廠商 = subcontractor; 會議記錄 = meeting minutes; 請購單 = purchase requisition (PR); 報價 = quotation; 試車 = commissioning; 驗收 = acceptance inspection; 缺失 = punch list items / defects; 施工圖 = shop drawings; 竣工圖 = as-built drawings; 工期 = construction schedule; 機電 = MEP; 無塵室 = cleanroom.
+計價/估驗計價 = progress payment / payment application (interim valuation); 追加減 = change orders (variations), 追加 = addition, 追減 = deduction; 結算 = final account / final settlement; 業主 = client / owner; 分包/協力廠商 = subcontractor; 會議記錄 = meeting minutes; 請購單 = purchase requisition (PR); 報價 = quotation; 試車 = commissioning; 驗收 = acceptance inspection; 缺失 = punch list items / defects (drywall: out of plumb, not flat / uneven surface, cracks, visible joints); 施工圖 = shop drawings; 竣工圖 = as-built drawings; 工期 = construction schedule; 機電 = MEP; 無塵室 = cleanroom.
 If you are not sure of a Taiwan construction term, say so and give the closest options instead of guessing.
-DO NOT INVENT: if Lee's sentence is cut off, ask him to finish it; do not complete it with facts he did not say.
-PRONUNCIATION FEEDBACK FORMAT (use whenever Lee repeats a target sentence):
-Scores: intonation X/5, stress X/5, speed X/5, pauses X/5, linking X/5.
-Then for every score under 5: the exact word or spot, what you heard, and what it should sound like.
-If any word sounded like a different word (e.g. "call you later" heard as "calculator"), say so explicitly.
-WORD CHECK (mandatory, before scores): compare what Lee said with the target sentence word by word. List every missing, changed, or extra word (e.g. "subcontracting" -> "some contracting", "our documents" -> "our this documents"). If ANY word differs, no score may be 5 and you must ask him to repeat. Never say "perfect", "spot on" or "excellent" unless the word check found zero differences.
-Then say "Repeat after me:" followed by the sentence, spoken naturally. Wait for Lee.
+DO NOT INVENT: never add details Lee did not say (floor, location, cause, quantity, people). If his sentence is cut off, ask him to finish it.
+LEE'S INSTRUCTIONS COME FIRST: if Lee asks a question, asks you to translate, to slow down, to explain a word, says "let's practice the whole conversation", or talks in Chinese about the lesson, that is NOT a repeat attempt. Do what he asks, then continue. "Practice the whole conversation" = go back through the useful sentences from this session, one at a time, each with "Repeat after me:".
+UNCLEAR AUDIO: if what you heard sounds like another language, random words, or noise, say "I didn't catch that clearly, please say it again" and do not grade it.
+YOU CANNOT SEE THE APP'S WORD COMPARISON. Never say "5/5", "all scores", "zero differences", "perfect", "spot on" or "excellent". Do not give numeric scores at all.
+AFTER EVERY REPEAT ATTEMPT answer in this order, short:
+1) Words: list each missing, changed or extra word you heard (e.g. "defense" -> "defects", "act as them" -> "ask them"), or say "Words: OK as I heard them."
+2) Sound: exactly ONE concrete note about speed, stress, intonation, pauses or linking, naming the exact word or spot (e.g. "stress the first syllable: DE-fects", "you paused after 'the'; say 'the site management' as one chunk", "a bit fast; slow down on 'coordination'", "your voice went up at the end; a statement should go down"). This line is mandatory even when the words are right. If a word sounded like a different word, say what it sounded like.
+3) If any word was wrong, say "Repeat after me:" with the same sentence (max 3 tries, then move on). Otherwise move on.
+SYNONYMS: if Lee uses a correct, natural synonym (e.g. "uneven" for "unlevel", "I'm" for "I am"), accept it: mention the target word once and do not make him repeat for it.
 When you give Lee a NEW sentence to read, always say "Repeat after me:" right before it.`;
 function resumeContext(){
   const h=HIST.find(x=>x.id===CFG.resumeId);if(!h)return "";
@@ -172,7 +174,7 @@ function buildPrompt0(){
   const topic=CFG.topic?`Topic/scenario: ${CFG.topic}.`:"";
   if(CFG.mode==="shadow"){
     const list=CFG.sentences.split(/\n+/).map(s=>s.trim()).filter(Boolean);
-    return BASE+`\nMODE: shadowing drill. ${topic}\n`+(list.length?`Use these sentences in order, one at a time:\n${list.map((s,i)=>`${i+1}. ${s}`).join("\n")}\nAfter the list is done, make similar sentences on the same topic.`:`Choose short, useful everyday sentences (6-12 words), gradually harder.`)+`\nMove to the next sentence only when all scores are 4+ or after 3 tries; when moving on, give one phrase variation Lee could also use.`;
+    return BASE+`\nMODE: shadowing drill. ${topic}\n`+(list.length?`Use these sentences in order, one at a time:\n${list.map((s,i)=>`${i+1}. ${s}`).join("\n")}\nAfter the list is done, make similar sentences on the same topic.`:`Choose short, useful everyday sentences (6-12 words), gradually harder.`)+`\nMove to the next sentence when the words are right and the sound note is minor, or after 3 tries; when moving on, give one phrase variation Lee could also use.`;
   }
   if(CFG.mode==="role")return BASE+`\nMODE: role-play. ${topic||"Scenario: ordering at a fast-food counter, asking to swap ingredients and asking what add-ons are."}\nYou play the other person and keep the conversation going with short turns. After each Lee turn, step out of role in ONE short line: fix grammar/word choice if needed, and give the single most important pronunciation note (stress, intonation, linking, speed, or a misheard word). Every 3 turns, offer 2 other natural ways to say something Lee said, then say "Repeat after me:" for one of them.`;
   return BASE+`\nMODE: free conversation. ${topic}\nChat naturally, ask follow-up questions. After each Lee turn add one short correction line (grammar or pronunciation) only if needed.`;
@@ -218,17 +220,25 @@ function veilTarget(rec){
 }
 function extractTarget(text){
   const m=String(text).match(/repeat after me[:,.]?\s*["“]?([^"”\n]+?[.?!])/i);
-  if(m){const s=m[1].trim();if(s.split(/\s+/).length>=2){target=s;expectRepeat=true}}
+  if(m){const s=m[1].trim();if(s.split(/\s+/).length>=2){if(s!==target)tries=0;target=s;expectRepeat=true}}
 }
+let tries=0;
 function showDiff(heard){
-  if(!target||!expectRepeat)return;
-  const hb=toks(heard);if(!hb.length)return;
-  expectRepeat=false; // compare only the attempt right after "Repeat after me" 
-  const d=diffWords(target,heard);
+  if(!target)return;
+  const raw=String(heard||"").trim();
+  if(/[\u3400-\u9fff]/.test(raw))return; // Chinese = a question/instruction, not an attempt
+  const hb=toks(raw);if(!hb.length)return;
+  const foreign=/[\u00c0-\u024f¿¡]/.test(raw);
+  const d=diffWords(target,raw);
+  // first attempt after "Repeat after me" is always compared; later turns only if they look like another try
+  if(!expectRepeat&&(foreign||d.score<40||tries>=4))return;
+  expectRepeat=false;tries++;
   const el=document.createElement("div");el.className="diff";
-  el.innerHTML=`<b>辨識比對 ${d.score}%</b>　目標：${esc(target)}<br>`+d.out.map(([k,w])=>`<span class="w-${k}">${esc(w)}</span>`).join(" ")+(d.score<100?`<div class="mut">紅底線＝沒被聽出來；刪除線＝被聽成的字。這是語音辨識結果，和老師的評語互相對照。</div>`:"");
+  if(foreign){el.innerHTML=`<b>辨識成外語</b>　聽到：${esc(raw)}<div class="mut">通常是雜音、太小聲或話太短。靠近麥克風、整句說完再放開。這次不算分。</div>`;$("#log").appendChild(el);el.scrollIntoView({block:"nearest"});
+    LOG.push({who:"diff",text:`[辨識成外語] 目標：${target}｜聽到：${raw}`,el});expectRepeat=true;tries--;return}
+  el.innerHTML=`<b>辨識比對 ${d.score}%</b>　目標：${esc(target)}<br>`+d.out.map(([k,w])=>`<span class="w-${k}">${esc(w)}</span>`).join(" ")+(d.score<100?`<div class="mut">紅底線＝沒被聽出來；刪除線＝被聽成的字。這是語音辨識結果，和老師的評語互相對照。老師看不到這個比對，它說的分數不算數。</div>`:"");
   $("#log").appendChild(el);el.scrollIntoView({block:"nearest"});
-  LOG.push({who:"diff",text:`[辨識比對 ${d.score}%] 目標：${target}｜聽到：${heard.trim()}｜漏掉：${d.out.filter(x=>x[0]==="miss").map(x=>x[1]).join(" ")||"無"}｜多出：${d.out.filter(x=>x[0]==="extra").map(x=>x[1]).join(" ")||"無"}`,el});
+  LOG.push({who:"diff",text:`[辨識比對 ${d.score}%] 目標：${target}｜聽到：${raw}｜漏掉：${d.out.filter(x=>x[0]==="miss").map(x=>x[1]).join(" ")||"無"}｜多出：${d.out.filter(x=>x[0]==="extra").map(x=>x[1]).join(" ")||"無"}`,el});
 }
 
 /* ---------- audio out (24k PCM) ---------- */
@@ -283,6 +293,9 @@ function releaseMic(){try{stream&&stream.getTracks().forEach(t=>t.stop())}catch(
 
 /* ---------- websocket session ---------- */
 let ws=null,want=false,handle=null,retries=0,setupDone=false;
+let TX=+(LS.get("coach_tx","2")); // 2 = English+Chinese + vocabulary, 1 = vocabulary only, 0 = default
+const VOCAB=["subcontractor","subcontractors","punch list","defects","drywall","MEP","cleanroom","commissioning","progress payment","change order","as-built drawings","shop drawings","meeting minutes","purchase requisition","quotation","main contractor","construction schedule","vertical alignment","out of plumb","unlevel","crane","lifting","overtime","Certainly"];
+function txCfg(){if(TX>=2)return {languageCodes:["en-US","zh-TW"],customVocabulary:VOCAB};if(TX===1)return {customVocabulary:VOCAB};return {}}
 const WS_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=";
 function status(t,k){$("#stat").textContent=t;$("#dot").className="dot "+(k||"")}
 function connect(){
@@ -293,7 +306,7 @@ function connect(){
     const setup={model:"models/"+CFG.model,
       generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:CFG.voice}}}},
       systemInstruction:{parts:[{text:buildPrompt()}]},
-      inputAudioTranscription:{},outputAudioTranscription:{},
+      inputAudioTranscription:txCfg(),outputAudioTranscription:{},
       contextWindowCompression:{slidingWindow:{}},
       sessionResumption:handle?{handle}:{}};
     if(CFG.talk==="ptt")setup.realtimeInputConfig={automaticActivityDetection:{disabled:true}};
@@ -323,6 +336,7 @@ function connect(){
     const reason=ev.reason||"";
     console.log("ws close",ev.code,reason);
     if(/API[_ ]?key|PERMISSION_DENIED|UNAUTHENTICATED/i.test(reason)){status("金鑰錯誤","err");sys("金鑰無效或沒有權限："+reason,true);want=false;stopUI();return}
+    if(!setupDoneEver&&TX>0&&(ev.code===1007||/invalid|unknown name|language|vocabulary/i.test(reason))){TX--;LS.set("coach_tx",String(TX));console.log("transcription config downgraded to",TX);setTimeout(()=>want&&connect(),300);return}
     if(/not found|not supported/i.test(reason)&&!setupDoneEver){status("模型錯誤","err");sys("模型「"+CFG.model+"」無法使用："+reason+"。請到進階設定改模型名稱。",true);want=false;stopUI();return}
     if(/RESOURCE_EXHAUSTED|quota/i.test(reason)){status("額度用完","err");sys("免費額度暫時用完："+reason+"。等一下再試。",true);want=false;stopUI();return}
     if(/already connected/i.test(reason)){handle=null;freshResume=true} /* old session still held by server: start a fresh one */
