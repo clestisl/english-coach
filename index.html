@@ -45,6 +45,9 @@ button.sm{min-height:32px;padding:4px 10px;font-size:13px;border-radius:8px;whit
 .dot.ok{background:#2d9a4a}.dot.wait{background:#d79b00}.dot.err{background:#c0392b}
 .hide{display:none!important}
 .veilpart{filter:blur(6px);cursor:pointer;transition:filter .2s}
+.hitem{border-bottom:1px solid var(--line);padding:8px 0;display:flex;gap:8px;align-items:center}
+.hitem .grow div:first-child{font-weight:500}
+.hview{white-space:pre-wrap;font-size:14px;background:var(--bg);border-radius:10px;padding:8px;margin-top:6px;max-height:50vh;overflow:auto}
 .banner{background:var(--acc2);border-radius:10px;padding:8px 10px;font-size:14px;margin-bottom:10px}
 details summary{cursor:pointer;color:var(--mut);font-size:14px}
 </style>
@@ -60,6 +63,17 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px}
     <div class="row" style="margin-top:8px"><button class="pri grow" id="saveKey">儲存</button></div>
   </section>
 
+  <section class="card" id="syncCard">
+    <div class="row"><h2 class="grow" style="margin:0">雲端同步</h2><span class="mut" id="syncStat">未連結</span></div>
+    <p class="mut" style="margin:6px 0 8px">用你的 Google 帳號把金鑰和上課紀錄存在 Google Drive 的 App 專用空間（你在 Drive 看不到這個檔，其他 App 也讀不到），手機、電腦開起來都一樣。</p>
+    <div class="row"><button class="grow" id="btnSync">連結 Google 帳號</button><button class="sm hide" id="btnSyncOff">取消連結</button></div>
+  </section>
+
+  <section class="card" id="histCard">
+    <div class="row"><h2 class="grow" style="margin:0">上課紀錄</h2><span class="mut" id="histN"></span></div>
+    <div id="histList" style="margin-top:6px"></div>
+  </section>
+
   <section class="card" id="setCard">
     <h2>今天練什麼</h2>
     <div class="seg" id="modeSeg">
@@ -67,6 +81,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px}
       <button data-mode="role">情境對話</button>
       <button data-mode="free">自由聊天</button>
     </div>
+    <div id="resumeBar" class="banner hide"></div>
     <label>情境／主題（可空白）</label>
     <input id="topic" placeholder="例：速食店點餐、換配料、問加購是什麼">
     <div id="shadowOpts">
@@ -127,7 +142,7 @@ setMode(CFG.mode);
 $$("#modeSeg button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 ["topic","sentences","talk","voice","model"].forEach(id=>$("#"+id).addEventListener("change",e=>{CFG[id]=e.target.value.trim()||CFG[id];saveCfg();if(id==="talk")updateMicLabel()}));
 function refreshKeyCard(){const has=!!LS.get("coach_key","");$("#keyCard").classList.toggle("hide",has)}
-$("#saveKey").onclick=()=>{let k=$("#key").value.trim();k=k.replace(/\s+/g,"");if(!/^(AQ\.|AIza)[\w.\-]{20,}$/.test(k)){alert2("金鑰格式不對：應該是 AQ. 或 AIza 開頭的一長串，請重新複製。");return}LS.set("coach_key",k);$("#key").value="";refreshKeyCard()};
+$("#saveKey").onclick=()=>{let k=$("#key").value.trim();k=k.replace(/\s+/g,"");if(!/^(AQ\.|AIza)[\w.\-]{20,}$/.test(k)){alert2("金鑰格式不對：應該是 AQ. 或 AIza 開頭的一長串，請重新複製。");return}LS.set("coach_key",k);$("#key").value="";refreshKeyCard();if(SYNC.on)syncPush()};
 $("#clearKey").onclick=()=>{LS.del("coach_key");refreshKeyCard()};
 refreshKeyCard();
 function alert2(m){sys(m,true)}
@@ -147,7 +162,13 @@ If any word sounded like a different word (e.g. "call you later" heard as "calcu
 WORD CHECK (mandatory, before scores): compare what Lee said with the target sentence word by word. List every missing, changed, or extra word (e.g. "subcontracting" -> "some contracting", "our documents" -> "our this documents"). If ANY word differs, no score may be 5 and you must ask him to repeat. Never say "perfect", "spot on" or "excellent" unless the word check found zero differences.
 Then say "Repeat after me:" followed by the sentence, spoken naturally. Wait for Lee.
 When you give Lee a NEW sentence to read, always say "Repeat after me:" right before it.`;
-function buildPrompt(){
+function resumeContext(){
+  const h=HIST.find(x=>x.id===CFG.resumeId);if(!h)return "";
+  const lines=h.log.filter(r=>r.w!=="diff").slice(-40).map(r=>(r.w==="teacher"?"Teacher: ":"Lee: ")+String(r.t).trim().slice(0,220)).join("\n");
+  return `\nPREVIOUS SESSION (${h.date.slice(0,10)}, ${h.topic||h.mode}): Lee wants to continue from it and may ask about things discussed there. Start by briefly reminding him where you left off. Transcript excerpt:\n${lines}\n`;
+}
+function buildPrompt(){return buildPrompt0()+resumeContext()}
+function buildPrompt0(){
   const topic=CFG.topic?`Topic/scenario: ${CFG.topic}.`:"";
   if(CFG.mode==="shadow"){
     const list=CFG.sentences.split(/\n+/).map(s=>s.trim()).filter(Boolean);
@@ -164,12 +185,12 @@ function addMsg(who,text){
   el.innerHTML=`<div class="who">${who==="teacher"?"老師":"你（辨識結果）"}</div><span></span>`;
   el.querySelector("span").textContent=text;box.appendChild(el);el.scrollIntoView({block:"nearest",behavior:"smooth"});
   if(who==="me")$$(".veilpart").forEach(x=>x.classList.remove("veilpart"));
-  const rec={who,text,el};LOG.push(rec);return rec;
+  const rec={who,text,el};LOG.push(rec);dirty=true;return rec;
 }
 function appendTo(kind,delta){
   if(!delta)return;
   if(!cur[kind]){cur[kind]=addMsg(kind==="t"?"teacher":"me","");}
-  cur[kind].text+=delta;cur[kind].el.querySelector("span").textContent=cur[kind].text;
+  cur[kind].text+=delta;dirty=true;cur[kind].el.querySelector("span").textContent=cur[kind].text;
   cur[kind].el.scrollIntoView({block:"nearest"});
 }
 function sys(m,warn){const d=document.createElement("div");d.className="sys";d.style.color=warn?"var(--warn)":"";d.textContent=m;$("#chatCard").classList.remove("hide");$("#log").appendChild(d);d.scrollIntoView({block:"nearest"})}
@@ -326,11 +347,13 @@ async function start(){
   ensureOut();
   if(!await ensureMic())return;
   $("#log").innerHTML="";LOG.length=0;cur={t:null,u:null};target="";handle=null;resumed=false;retries=0;
+  SESSION={id:"s"+Date.now(),date:new Date().toISOString(),mode:CFG.mode,topic:CFG.topic,resumeOf:CFG.resumeId||""};
+  if(SYNC.on&&SYNC.token&&Date.now()<SYNC.exp-60000)syncPull();
   want=true;$("#setCard").classList.add("hide");$("#btnStop2").classList.remove("hide");$("#chatCard").classList.remove("hide");$("#dock").classList.remove("hide");$("#btnStart").classList.add("hide");$("#btnStop").classList.remove("hide");
   setupDoneEver=false;updateMicLabel();connect();
 }
 function stopUI(){$("#setCard").classList.remove("hide");$("#btnStop2").classList.add("hide");$("#btnStart").classList.remove("hide");$("#btnStop").classList.add("hide");$("#dock").classList.add("hide");releaseMic()}
-function stop(){want=false;stopPlayback();try{ws&&ws.close()}catch(e){}stopUI();status("未連線");sys("下課。可以按「複製紀錄」把今天的內容貼給 Claude 整理。")}
+function stop(){want=false;stopPlayback();try{ws&&ws.close()}catch(e){}stopUI();status("未連線");saveSession(true);setResume("");sys("下課。紀錄已存到「上課紀錄」"+(SYNC.on?"並同步到雲端。":"（只存在這台裝置）。"))}
 $("#btnStart").onclick=start;$("#btnStop").onclick=stop;$("#btnStop2").onclick=stop;
 $("#btnTxt").onclick=()=>{const t=$("#txt").value.trim();if(!t)return;$("#txt").value="";sendText(t)};
 $("#txt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();$("#btnTxt").click()}});
@@ -357,6 +380,73 @@ mic.addEventListener("pointerup",e=>{e.preventDefault();micUp()});
 mic.addEventListener("pointercancel",micUp);
 mic.addEventListener("contextmenu",e=>e.preventDefault());
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&sending&&CFG.talk==="ptt")micUp()});
+
+/* ---------- history (local + Google Drive appData sync) ---------- */
+const GCLIENT="270792877647-dncsnf3mjhmr9kplvu3kvc99auooovvb.apps.googleusercontent.com";
+let HIST=LS.get("coach_hist",[]),SESSION=null,dirty=false;
+function persistLocal(){HIST.sort((a,b)=>b.id.localeCompare(a.id));HIST=HIST.slice(0,150);LS.set("coach_hist",HIST)}
+function saveSession(push){
+  if(!SESSION||!LOG.length){return}
+  const log=LOG.map(r=>({w:r.who,t:String(r.text).slice(0,2000)}));
+  const rec=Object.assign({},SESSION,{log,turns:log.filter(r=>r.w==="me").length,updated:Date.now()});
+  HIST=HIST.filter(x=>x.id!==rec.id);HIST.unshift(rec);persistLocal();renderHist();dirty=false;
+  if(push&&SYNC.on)syncPush();
+}
+setInterval(()=>{if(want&&dirty)saveSession(true)},90000);
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&dirty)saveSession(true)});
+const MODEN={shadow:"跟讀",role:"情境對話",free:"自由聊天"};
+function renderHist(){
+  $("#histN").textContent=HIST.length?`${HIST.length} 堂`:"";
+  $("#histList").innerHTML=HIST.slice(0,30).map(h=>{const d=new Date(h.date);return `<div class="hitem" data-id="${h.id}"><div class="grow"><div>${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}｜${esc(MODEN[h.mode]||h.mode)}${h.topic?"｜"+esc(h.topic):""}</div><div class="mut">你講了 ${h.turns||0} 次</div></div><button class="sm" data-view>查看</button><button class="sm" data-resume>接續</button></div>`}).join("")||'<div class="mut">還沒有紀錄。上完一堂課會自動存在這裡。</div>';
+  $$("#histList [data-view]").forEach(b=>b.onclick=()=>{const it=b.closest(".hitem"),h=HIST.find(x=>x.id===it.dataset.id);const old=it.nextElementSibling;if(old&&old.classList.contains("hview")){old.remove();return}
+    const v=document.createElement("div");v.className="hview";v.textContent=h.log.map(r=>r.w==="diff"?r.t:(r.w==="teacher"?"Teacher: ":"Lee: ")+r.t.trim()).join("\n");
+    const c=document.createElement("button");c.className="sm";c.textContent="複製";c.style.marginTop="6px";c.onclick=async()=>{try{await navigator.clipboard.writeText(v.textContent);c.textContent="已複製"}catch(e){c.textContent="複製失敗"}};v.appendChild(document.createElement("br"));v.appendChild(c);it.after(v)});
+  $$("#histList [data-resume]").forEach(b=>b.onclick=()=>{const h=HIST.find(x=>x.id===b.closest(".hitem").dataset.id);setResume(h.id);if(h.topic&&!$("#topic").value)$("#topic").value=h.topic;setMode(h.mode);$("#setCard").scrollIntoView({behavior:"smooth"})});
+}
+function setResume(id){CFG.resumeId=id||"";saveCfg();const bar=$("#resumeBar"),h=HIST.find(x=>x.id===id);
+  if(!h){bar.classList.add("hide");return}
+  const d=new Date(h.date);bar.innerHTML=`接續 ${d.getMonth()+1}/${d.getDate()} 的課（${esc(h.topic||MODEN[h.mode]||"")}），老師會先帶你回顧。 <button class="sm" id="resumeX">取消</button>`;bar.classList.remove("hide");$("#resumeX").onclick=()=>setResume("")}
+function mergeHist(remote){const m=new Map();HIST.forEach(h=>m.set(h.id,h));(remote||[]).forEach(h=>{const l=m.get(h.id);if(!l||(h.updated||0)>(l.updated||0))m.set(h.id,h)});HIST=[...m.values()];persistLocal();renderHist()}
+
+const SYNC={on:LS.get("coach_sync",false),token:null,exp:0,fileId:null,tc:null,busy:false};
+function syncStat(t){$("#syncStat").textContent=t}
+function loadGIS(){return new Promise((res,rej)=>{if(window.google&&google.accounts)return res();const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.onload=res;s.onerror=()=>rej(new Error("無法載入 Google 登入"));document.head.appendChild(s)})}
+async function getToken(interactive,allowPopup){
+  if(SYNC.token&&Date.now()<SYNC.exp-60000)return SYNC.token;
+  if(!allowPopup)throw new Error("授權已過期，請按「立即同步」");
+  if(!GCLIENT||GCLIENT.startsWith("__"))throw new Error("同步尚未設定（缺 Google Client ID）");
+  await loadGIS();
+  return await new Promise((res,rej)=>{
+    SYNC.tc=google.accounts.oauth2.initTokenClient({client_id:GCLIENT,scope:"https://www.googleapis.com/auth/drive.appdata",
+      callback:r=>{if(r.error){rej(new Error(r.error));return}SYNC.token=r.access_token;SYNC.exp=Date.now()+(r.expires_in||3600)*1000;res(SYNC.token)},
+      error_callback:e=>rej(new Error(e.type||"popup"))});
+    SYNC.tc.requestAccessToken({prompt:interactive?"consent":""});
+  });
+}
+async function gfetch(url,opt={}){const t=await getToken(false,false);opt.headers=Object.assign({Authorization:"Bearer "+t},opt.headers||{});const r=await fetch(url,opt);if(!r.ok)throw new Error("Drive "+r.status);return r}
+async function findFile(){if(SYNC.fileId)return SYNC.fileId;const r=await gfetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id)&q="+encodeURIComponent("name='coach-data.json'"));const j=await r.json();SYNC.fileId=j.files&&j.files[0]?j.files[0].id:null;return SYNC.fileId}
+async function syncPull(){
+  if(SYNC.busy)return;SYNC.busy=true;syncStat("同步中…");
+  try{const id=await findFile();
+    if(id){const d=await (await gfetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
+      if(d.key&&!LS.get("coach_key","")){LS.set("coach_key",d.key);refreshKeyCard()}
+      mergeHist(d.sessions)}
+    SYNC.busy=false;await syncPush();
+  }catch(e){syncStat("同步失敗："+e.message)}finally{SYNC.busy=false}
+}
+async function syncPush(){
+  if(SYNC.busy)return;SYNC.busy=true;
+  try{const body=JSON.stringify({v:1,updated:Date.now(),key:LS.get("coach_key",""),sessions:HIST});const id=await findFile();
+    if(id)await gfetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`,{method:"PATCH",headers:{"Content-Type":"application/json"},body});
+    else{const fd=new FormData();fd.append("metadata",new Blob([JSON.stringify({name:"coach-data.json",parents:["appDataFolder"]})],{type:"application/json"}));fd.append("file",new Blob([body],{type:"application/json"}));
+      const r=await gfetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",{method:"POST",body:fd});SYNC.fileId=(await r.json()).id}
+    {const n=new Date();syncStat("已同步 "+String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0"))}
+  }catch(e){syncStat("同步失敗："+e.message)}finally{SYNC.busy=false}
+}
+function syncUI(){$("#btnSync").textContent=SYNC.on?"立即同步":"連結 Google 帳號";$("#btnSyncOff").classList.toggle("hide",!SYNC.on);if(!SYNC.on)syncStat("未連結（紀錄只存在這台裝置）")}
+$("#btnSync").onclick=async()=>{try{await getToken(!SYNC.on,true);SYNC.on=true;LS.set("coach_sync",true);syncUI();await syncPull()}catch(e){syncStat("連結失敗："+e.message)}};
+$("#btnSyncOff").onclick=()=>{SYNC.on=false;SYNC.token=null;SYNC.fileId=null;LS.set("coach_sync",false);syncUI()};
+syncUI();renderHist();setResume(CFG.resumeId);if(SYNC.on)syncStat("按「立即同步」載入其他裝置的紀錄");
 if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 let installEvt=null;window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;const b=document.createElement("button");b.className="sm";b.id="btnInstall";b.textContent="安裝 App";b.onclick=async()=>{installEvt.prompt();await installEvt.userChoice;b.remove()};document.querySelector(".top").appendChild(b)});
 if(!window.isSecureContext)sys("這個頁面需要用 https 開啟才能使用麥克風。",true);
