@@ -97,6 +97,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px}
     <input id="txt" class="grow" placeholder="也可以打字（中文問也行）">
     <button class="sm" id="btnTxt">送出</button>
     <button class="sm" id="btnAgain">再一句</button>
+    <button class="sm" id="btnBeep" title="測試喇叭">🔊</button>
   </div>
 </div></div>
 
@@ -209,8 +210,10 @@ function showDiff(heard){
 /* ---------- audio out (24k PCM) ---------- */
 let outCtx=null,playHead=0;const playing=new Set();
 function ensureOut(){if(!outCtx){const AC=window.AudioContext||window.webkitAudioContext;outCtx=new AC()}if(outCtx.state==="suspended")outCtx.resume();return outCtx}
+let audioChunks=0;
 function playPCM(b64){
-  const ctx=ensureOut();const bin=atob(b64);const len=bin.length>>1;if(!len)return;
+  const ctx=ensureOut();audioChunks++;
+  if(ctx.state!=="running"&&!document.querySelector("#unmute")){const d=document.createElement("button");d.id="unmute";d.className="pri";d.style.cssText="width:100%;margin:6px 0";d.textContent="🔇 老師的聲音被瀏覽器擋住了，點這裡恢復";d.onclick=()=>{outCtx.resume();d.remove()};$("#log").appendChild(d)}const bin=atob(b64);const len=bin.length>>1;if(!len)return;
   const buf=ctx.createBuffer(1,len,24000);const ch=buf.getChannelData(0);
   for(let i=0;i<len;i++){let v=bin.charCodeAt(i*2)|(bin.charCodeAt(i*2+1)<<8);if(v>=32768)v-=65536;ch[i]=v/32768}
   const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);
@@ -234,7 +237,7 @@ registerProcessor("pcm16k",P);`;
 async function ensureMic(){
   if(node)return true;
   try{
-    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+    const ec=CFG.talk!=="ptt";stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:ec,noiseSuppression:true,autoGainControl:true,channelCount:1}});
   }catch(e){sys("拿不到麥克風權限："+(e.message||e.name)+"。請在瀏覽器設定允許這個網站使用麥克風。",true);return false}
   const AC=window.AudioContext||window.webkitAudioContext;inCtx=new AC();
   const url=URL.createObjectURL(new Blob([WORKLET],{type:"application/javascript"}));
@@ -277,6 +280,7 @@ function connect(){
     if(m.setupComplete){
       setupDone=true;setupDoneEver=true;retries=0;status("上課中","ok");
       if(!resumed){resumed=true;sendText(CFG.mode==="shadow"?"Hi, I'm ready. Please start.":"Hi! Let's start.",true)}
+      else if(freshResume){freshResume=false;const recent=LOG.filter(r=>r.who!=="diff").slice(-6).map(r=>(r.who==="teacher"?"Teacher: ":"Lee: ")+r.text.trim()).join("\n");sendText("(Connection was reset. Continue the same lesson from here. Recent conversation:\n"+recent+")",true)}
       return;
     }
     if(m.sessionResumptionUpdate&&m.sessionResumptionUpdate.resumable&&m.sessionResumptionUpdate.newHandle)handle=m.sessionResumptionUpdate.newHandle;
@@ -293,14 +297,17 @@ function connect(){
     setupDone=false;sending=false;setMicUI(false);
     if(!want){status("未連線");return}
     const reason=ev.reason||"";
-    if(/API key|PERMISSION|invalid/i.test(reason)||ev.code===1008&&/key/i.test(reason)){status("金鑰錯誤","err");sys("金鑰無效或沒有權限："+reason,true);want=false;stopUI();return}
-    if(/not found|not supported|model/i.test(reason)&&!setupDoneEver){status("模型錯誤","err");sys("模型「"+CFG.model+"」無法使用："+reason+"。請到進階設定改模型名稱。",true);want=false;stopUI();return}
-    if(/quota|RESOURCE_EXHAUSTED|rate/i.test(reason)){status("額度用完","err");sys("免費額度暫時用完："+reason+"。等一下再試。",true);want=false;stopUI();return}
+    console.log("ws close",ev.code,reason);
+    if(/API[_ ]?key|PERMISSION_DENIED|UNAUTHENTICATED/i.test(reason)){status("金鑰錯誤","err");sys("金鑰無效或沒有權限："+reason,true);want=false;stopUI();return}
+    if(/not found|not supported/i.test(reason)&&!setupDoneEver){status("模型錯誤","err");sys("模型「"+CFG.model+"」無法使用："+reason+"。請到進階設定改模型名稱。",true);want=false;stopUI();return}
+    if(/RESOURCE_EXHAUSTED|quota/i.test(reason)){status("額度用完","err");sys("免費額度暫時用完："+reason+"。等一下再試。",true);want=false;stopUI();return}
+    if(/already connected/i.test(reason)){handle=null;freshResume=true} /* old session still held by server: start a fresh one */
     if(retries>=4){status("連線失敗","err");sys("一直連不上（"+ev.code+" "+reason+"）。檢查網路後按「開始上課」重試。",true);want=false;stopUI();return}
-    retries++;status("重新連線…","wait");setTimeout(()=>want&&connect(),800*retries);
+    retries++;status("重新連線…","wait");sys("連線中斷（"+ev.code+(reason?" "+reason.slice(0,60):"")+"），自動接續中…");
+    setTimeout(()=>want&&connect(),1500*retries);
   };
 }
-let resumed=false,setupDoneEver=false;
+let resumed=false,setupDoneEver=false,freshResume=false;
 function finishUser(){const u=cur.u;cur.u=null;if(u)showDiff(u.text)}
 function sendText(t,silent){
   if(!ws||ws.readyState!==1||!setupDone){sys("還沒連上，稍等。",true);return}
@@ -324,6 +331,7 @@ function stop(){want=false;stopPlayback();try{ws&&ws.close()}catch(e){}stopUI();
 $("#btnStart").onclick=start;$("#btnStop").onclick=stop;$("#btnStop2").onclick=stop;
 $("#btnTxt").onclick=()=>{const t=$("#txt").value.trim();if(!t)return;$("#txt").value="";sendText(t)};
 $("#txt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();$("#btnTxt").click()}});
+$("#btnBeep").onclick=()=>{const c=ensureOut();const o=c.createOscillator(),g=c.createGain();g.gain.value=0.2;o.frequency.value=660;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+0.4);sys("播放測試音（"+c.state+"），收到老師語音 "+audioChunks+" 段。聽不到請檢查手機音量或靜音模式。")};
 $("#btnAgain").onclick=()=>sendText(CFG.mode==="shadow"?"Next sentence, please.":"Please continue.",false);
 
 function updateMicLabel(){setMicUI(sending)}
