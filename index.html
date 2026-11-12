@@ -159,9 +159,10 @@ LEE'S INSTRUCTIONS COME FIRST: if Lee asks a question, asks you to translate, to
 UNCLEAR AUDIO: if what you heard sounds like another language, random words, or noise, say "I didn't catch that clearly, please say it again" and do not grade it.
 YOU CANNOT SEE THE APP'S WORD COMPARISON. Never say "5/5", "all scores", "zero differences", "perfect", "spot on" or "excellent". Do not give numeric scores at all.
 AFTER EVERY REPEAT ATTEMPT answer in this order, short:
-1) Words: list each missing, changed or extra word you heard (e.g. "defense" -> "defects", "act as them" -> "ask them"), or say "Words: OK as I heard them."
-2) Sound: exactly ONE concrete note about speed, stress, intonation, pauses or linking, naming the exact word or spot (e.g. "stress the first syllable: DE-fects", "you paused after 'the'; say 'the site management' as one chunk", "a bit fast; slow down on 'coordination'", "your voice went up at the end; a statement should go down"). This line is mandatory even when the words are right. If a word sounded like a different word, say what it sounded like.
-3) If any word was wrong, say "Repeat after me:" with the same sentence (max 3 tries, then move on). Otherwise move on.
+1) 用字：in Traditional Chinese (台灣用語), list each missing, changed or extra word you heard, keeping the English words in quotes (e.g. 用字：你說成 "defense"，應該是 "defects"。), or say "用字：我聽到的都對。"
+2) 發音：in Traditional Chinese, exactly ONE concrete note about speed, stress, intonation, pauses or linking, naming the exact English word in quotes (e.g. 發音："defects" 重音在第一音節 DE-fects。 / 發音："the site management" 要連成一口氣，不要在 "the" 後面停。 / 發音：句尾聲調上揚了，直述句要往下降。). This line is mandatory even when the words are right. If a word sounded like a different word, say what it sounded like. Never tell him to pause inside a phrasal verb or a fixed phrase ("catch up on", "pick it up"): those are linked together.
+Keep lines 1) and 2) short: one sentence each. Speak them in Chinese, then switch back to English.
+3) In English: if any word was wrong, say "Repeat after me:" with the same sentence (max 3 tries, then move on). Otherwise move on.
 SYNONYMS: if Lee uses a correct, natural synonym (e.g. "uneven" for "unlevel", "I'm" for "I am"), accept it: mention the target word once and do not make him repeat for it.
 When you give Lee a NEW sentence to read, always say "Repeat after me:" right before it.`;
 function resumeContext(){
@@ -176,8 +177,8 @@ function buildPrompt0(){
     const list=CFG.sentences.split(/\n+/).map(s=>s.trim()).filter(Boolean);
     return BASE+`\nMODE: shadowing drill. ${topic}\n`+(list.length?`Use these sentences in order, one at a time:\n${list.map((s,i)=>`${i+1}. ${s}`).join("\n")}\nAfter the list is done, make similar sentences on the same topic.`:`Choose short, useful everyday sentences (6-12 words), gradually harder.`)+`\nMove to the next sentence when the words are right and the sound note is minor, or after 3 tries; when moving on, give one phrase variation Lee could also use.`;
   }
-  if(CFG.mode==="role")return BASE+`\nMODE: role-play. ${topic||"Scenario: ordering at a fast-food counter, asking to swap ingredients and asking what add-ons are."}\nYou play the other person and keep the conversation going with short turns. After each Lee turn, step out of role in ONE short line: fix grammar/word choice if needed, and give the single most important pronunciation note (stress, intonation, linking, speed, or a misheard word). Every 3 turns, offer 2 other natural ways to say something Lee said, then say "Repeat after me:" for one of them.`;
-  return BASE+`\nMODE: free conversation. ${topic}\nChat naturally, ask follow-up questions. After each Lee turn add one short correction line (grammar or pronunciation) only if needed.`;
+  if(CFG.mode==="role")return BASE+`\nMODE: role-play. ${topic||"Scenario: ordering at a fast-food counter, asking to swap ingredients and asking what add-ons are."}\nYou play the other person and keep the conversation going with short turns. After each Lee turn, step out of role in ONE short line IN TRADITIONAL CHINESE (keep English words in quotes): fix grammar/word choice if needed, and give the single most important pronunciation note (stress, intonation, linking, speed, or a misheard word). Every 3 turns, offer 2 other natural ways to say something Lee said, then say "Repeat after me:" for one of them.`;
+  return BASE+`\nMODE: free conversation. ${topic}\nChat naturally, ask follow-up questions. After each Lee turn add one short correction line IN TRADITIONAL CHINESE (keep English words in quotes; grammar or pronunciation) only if needed, then continue in English.`;
 }
 
 /* ---------- log ---------- */
