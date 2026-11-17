@@ -57,10 +57,11 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px}
 <main class="wrap">
 
   <section class="card" id="keyCard">
-    <h2>第一次使用：貼上 Gemini API 金鑰</h2>
-    <p class="mut" style="margin-top:0">金鑰只存在這台裝置的瀏覽器裡，不會傳到別處（只用來連 Google）。換手機或電腦要再貼一次。</p>
+    <h2>找不到金鑰</h2>
+    <button class="pri" id="keyFromSync" style="width:100%;margin:4px 0 10px">用過了？按這裡連結 Google 帳號，自動找回金鑰和紀錄</button>
+    <p class="mut" style="margin-top:0">清除瀏覽器資料會把金鑰一起清掉。連結過 Google 帳號的話，按上面的按鈕就能找回，不用重貼。真的第一次用，才在下面貼上金鑰：</p>
     <input id="key" type="password" autocomplete="off" placeholder="AQ. 或 AIza 開頭的金鑰">
-    <div class="row" style="margin-top:8px"><button class="pri grow" id="saveKey">儲存</button></div>
+    <div class="row" style="margin-top:8px"><button class="grow" id="saveKey">儲存</button></div>
   </section>
 
   <section class="card" id="syncCard">
@@ -115,6 +116,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px}
     <input id="txt" class="grow" placeholder="也可以打字（中文問也行）">
     <button class="sm" id="btnTxt">送出</button>
     <button class="sm" id="btnAgain">再一句</button>
+    <button class="sm" id="btnReview">複習今天句子</button>
     <button class="sm" id="btnBeep" title="測試喇叭">🔊</button>
   </div>
 </div></div>
@@ -155,6 +157,11 @@ CONSTRUCTION GLOSSARY (Taiwan site terms -> correct English; never translate 計
 計價/估驗計價 = progress payment / payment application (interim valuation); 追加減 = change orders (variations), 追加 = addition, 追減 = deduction; 結算 = final account / final settlement; 業主 = client / owner; 分包/協力廠商 = subcontractor; 會議記錄 = meeting minutes; 請購單 = purchase requisition (PR); 報價 = quotation; 試車 = commissioning; 驗收 = acceptance inspection; 缺失 = punch list items / defects (drywall: out of plumb, not flat / uneven surface, cracks, visible joints); 施工圖 = shop drawings; 竣工圖 = as-built drawings; 工期 = construction schedule; 機電 = MEP; 無塵室 = cleanroom.
 If you are not sure of a Taiwan construction term, say so and give the closest options instead of guessing.
 DO NOT INVENT: never add details Lee did not say (floor, location, cause, quantity, people). If his sentence is cut off, ask him to finish it.
+MESSAGES STARTING WITH [APP] come from the practice app, not from Lee: follow them exactly and never read the [APP] text aloud.
+NEVER CLAIM LEE SAID SOMETHING YOU DID NOT HEAR. Correct only words he actually said.
+IF LEE ADDS CORRECT WORDS to a sentence (e.g. "...the functionality and usability"), accept it; the longer sentence is fine. Do not make him drop correct words.
+AMBIGUOUS CHINESE INSTRUCTIONS: Chinese speech recognition is often wrong. If a Chinese instruction could mean more than one thing or sounds odd, first restate in ONE short Chinese sentence what you think he wants and ask "對嗎？" before acting.
+"練習今天的句子 / 再練一次今天講的 / 你講的我也要練" = review only: go through the sentences already used today (his corrected ones and your questions) with "Repeat after me:"; never interview him again or add new questions during a review.
 LEE'S INSTRUCTIONS COME FIRST: if Lee asks a question, asks you to translate, to slow down, to explain a word, says "let's practice the whole conversation", or talks in Chinese about the lesson, that is NOT a repeat attempt. Do what he asks, then continue. "Practice the whole conversation" = go back through the useful sentences from this session, one at a time, each with "Repeat after me:".
 UNCLEAR AUDIO: if what you heard sounds like another language, random words, or noise, say "I didn't catch that clearly, please say it again" and do not grade it.
 YOU CANNOT SEE THE APP'S WORD COMPARISON. Never say "5/5", "all scores", "zero differences", "perfect", "spot on" or "excellent". Do not give numeric scores at all.
@@ -198,12 +205,13 @@ function appendTo(kind,delta){
   cur[kind].el.scrollIntoView({block:"nearest"});
 }
 function sys(m,warn){const d=document.createElement("div");d.className="sys";d.style.color=warn?"var(--warn)":"";d.textContent=m;$("#chatCard").classList.remove("hide");$("#log").appendChild(d);d.scrollIntoView({block:"nearest"})}
-$("#btnCopy").onclick=async()=>{const t=LOG.map(r=>r.who==="diff"?r.text:(r.who==="teacher"?"Teacher: ":"Lee: ")+r.text.trim()).join("\n");try{await navigator.clipboard.writeText(t);sys("已複製，可以貼給 Claude 整理成筆記。")}catch(e){sys("複製失敗，請長按紀錄自行選取。",true)}};
+$("#btnCopy").onclick=async()=>{const t="請幫我整理今天練習的句子（修正後版本），和我不熟的字（意思，不是發音）：\n\n"+LOG.map(r=>r.who==="diff"?r.text:(r.who==="teacher"?"Teacher: ":"Lee: ")+r.text.trim()).join("\n");try{await navigator.clipboard.writeText(t);sys("已複製，可以貼給 Claude 整理成筆記。")}catch(e){sys("複製失敗，請長按紀錄自行選取。",true)}};
 
 /* ---------- target sentence diff ---------- */
 let target="",expectRepeat=false;
 const NUM={"0":"zero","1":"one","2":"two","3":"three","4":"four","5":"five","6":"six","7":"seven","8":"eight","9":"nine","10":"ten","11":"eleven","12":"twelve"};
-const norm=s=>String(s||"").toLowerCase().replace(/[’‘`]/g,"'").replace(/'/g,"").replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+const CONTR={"i'm":"i am","you're":"you are","we're":"we are","they're":"they are","it's":"it is","that's":"that is","there's":"there is","he's":"he is","she's":"she is","let's":"let us","i'll":"i will","you'll":"you will","we'll":"we will","they'll":"they will","it'll":"it will","i've":"i have","we've":"we have","you've":"you have","they've":"they have","i'd":"i would","we'd":"we would","don't":"do not","doesn't":"does not","didn't":"did not","can't":"can not","cannot":"can not","won't":"will not","isn't":"is not","aren't":"are not","wasn't":"was not","weren't":"were not","haven't":"have not","hasn't":"has not","shouldn't":"should not","wouldn't":"would not","couldn't":"could not"};
+const norm=s=>String(s||"").toLowerCase().replace(/[’‘`]/g,"'").replace(/\b[a-z]+'[a-z]+\b|\bcannot\b/g,w=>CONTR[w]||w).replace(/'/g,"").replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
 const toks=s=>norm(s).split(" ").filter(Boolean).map(w=>NUM[w]||w);
 function diffWords(t,h){
   const a=toks(t),b0=toks(h),b=[];
@@ -240,6 +248,7 @@ function showDiff(heard){
     LOG.push({who:"diff",text:`[辨識成外語] 目標：${target}｜聽到：${raw}`,el});expectRepeat=true;tries--;return}
   el.innerHTML=`<b>辨識比對 ${d.score}%</b>　目標：${esc(target)}<br>`+d.out.map(([k,w])=>`<span class="w-${k}">${esc(w)}</span>`).join(" ")+(d.score<100?`<div class="mut">紅底線＝沒被聽出來；刪除線＝被聽成的字。這是語音辨識結果，和老師的評語互相對照。老師看不到這個比對，它說的分數不算數。</div>`:"");
   $("#log").appendChild(el);el.scrollIntoView({block:"nearest"});
+  reviewAfterDiff(d.score);
   LOG.push({who:"diff",text:`[辨識比對 ${d.score}%] 目標：${target}｜聽到：${raw}｜漏掉：${d.out.filter(x=>x[0]==="miss").map(x=>x[1]).join(" ")||"無"}｜多出：${d.out.filter(x=>x[0]==="extra").map(x=>x[1]).join(" ")||"無"}`,el});
 }
 
@@ -329,7 +338,7 @@ function connect(){
     if(sc.inputTranscription&&sc.inputTranscription.text){cur.t=null;appendTo("u",sc.inputTranscription.text)}
     if(sc.outputTranscription&&sc.outputTranscription.text){if(cur.u){finishUser()}appendTo("t",sc.outputTranscription.text)}
     if(sc.modelTurn&&sc.modelTurn.parts)for(const p of sc.modelTurn.parts){if(p.inlineData&&p.inlineData.data&&/audio/.test(p.inlineData.mimeType||"audio"))playPCM(p.inlineData.data);else if(p.text&&!sc.outputTranscription){/* text parts are thoughts or text; ignore */}}
-    if(sc.turnComplete){if(cur.u)finishUser();if(cur.t){extractTarget(cur.t.text);if(CFG.blind)veilTarget(cur.t)}cur.t=null}
+    if(sc.turnComplete){if(cur.u)finishUser();if(cur.t){extractTarget(cur.t.text);if(CFG.blind)veilTarget(cur.t)}cur.t=null;reviewOnTurnEnd()}
   };
   ws.onerror=()=>{};
   ws.onclose=ev=>{
@@ -349,6 +358,39 @@ function connect(){
 }
 let resumed=false,setupDoneEver=false,freshResume=false;
 function finishUser(){const u=cur.u;cur.u=null;if(u)showDiff(u.text)}
+/* ---------- review mode: the app drives the sentence list so the teacher cannot drift ---------- */
+let REVIEW=null;
+function reviewList(){
+  const seen=new Set(),out=[];const add=x=>{x=x.trim().replace(/^["“]|["”]$/g,"");const k=norm(x);if(k.split(" ").length<3||k.split(" ").length>25||seen.has(k))return;seen.add(k);out.push(x)};
+  for(const r of LOG){
+    if(r.who==="diff"){const m=r.text.match(/目標：(.+?)｜/);if(m)add(m[1])}
+    if(r.who==="teacher"){r.text.split(/\n+|(?<=[.?!。？！])\s+/).map(x=>x.trim()).filter(x=>/\?$/.test(x)&&!/[\u3400-\u9fff\uac00-\ud7af]/.test(x)&&/^[A-Z]/.test(x)&&!/repeat after me|did that cover|anything else|any other questions|ready to|can you hear/i.test(x)).forEach(add)}
+  }
+  return out;
+}
+function reviewSend(){
+  const R=REVIEW;if(!R)return;
+  if(R.i>=R.list.length){const miss=R.list.filter((x,k)=>!(R.best[k]>=100));REVIEW=null;$("#btnAgain").textContent="再一句";
+    sendText(`[APP] Review finished. Tell Lee in Traditional Chinese that the review is done${miss.length?` and that these still need work: ${miss.map(x=>`"${x}"`).join(" ")}`:" and that all sentences matched"}. Then ask in Chinese what he wants to do next. Do not start a new topic yourself.`,true);sys("複習完成。");return}
+  R.tries=0;$("#btnAgain").textContent=`下一句（${R.i+1}/${R.list.length}）`;
+  sendText(`[APP] REVIEW ${R.i+1}/${R.list.length}. Say exactly: Repeat after me: ${R.list[R.i]}`,true);
+}
+function reviewAfterDiff(score){
+  const R=REVIEW;if(!R||norm(target)!==norm(R.list[R.i]||""))return;
+  R.best[R.i]=Math.max(R.best[R.i]||0,score);R.tries++;
+  if(score>=100||R.tries>=3){R.i++;R.pending=true}
+}
+function reviewOnTurnEnd(){
+  const R=REVIEW;if(!R||!R.pending)return;R.pending=false;
+  const wait=()=>{const left=outCtx?(playHead-outCtx.currentTime):0;if(left>0.05)setTimeout(wait,250);else setTimeout(()=>REVIEW===R&&reviewSend(),700)};wait();
+}
+function startReview(){
+  const list=reviewList();if(!list.length){sys("目前還沒有可以複習的句子（要先有跟讀句或老師的英文問題）。",true);return}
+  REVIEW={list,i:0,best:[],tries:0,pending:false};
+  sendText(`[APP] REVIEW MODE. Lee wants to re-practice today's sentences (his corrected sentences AND your questions). Nothing else: do NOT ask new questions, do NOT start new topics, do NOT chat. The app will send you the sentences one by one. For each one: say "Repeat after me:" and the exact sentence; after Lee's attempt give only the short 用字 and 發音 lines in Chinese. If he was wrong, say "Repeat after me:" with the same sentence again. If he was right, just say "OK." and stop talking; the app sends the next one.`,true);
+  sys(`開始複習：共 ${list.length} 句（你的修正句＋老師的問句）。答對或試 3 次會自動換下一句，也可以按「下一句」跳過。`);
+  setTimeout(reviewSend,400);
+}
 function sendText(t,silent){
   if(!ws||ws.readyState!==1||!setupDone){sys("還沒連上，稍等。",true);return}
   if(!silent)addMsg("me",t);
@@ -362,7 +404,7 @@ async function start(){
   if(!LS.get("coach_key","")){refreshKeyCard();return}
   ensureOut();
   if(!await ensureMic())return;
-  $("#log").innerHTML="";LOG.length=0;cur={t:null,u:null};target="";handle=null;resumed=false;retries=0;
+  $("#log").innerHTML="";LOG.length=0;cur={t:null,u:null};target="";REVIEW=null;$("#btnAgain").textContent="再一句";handle=null;resumed=false;retries=0;
   SESSION={id:"s"+Date.now(),date:new Date().toISOString(),mode:CFG.mode,topic:CFG.topic,resumeOf:CFG.resumeId||""};
   if(SYNC.on&&SYNC.token&&Date.now()<SYNC.exp-60000)syncPull();
   want=true;$("#setCard").classList.add("hide");$("#btnStop2").classList.remove("hide");$("#chatCard").classList.remove("hide");$("#dock").classList.remove("hide");$("#btnStart").classList.add("hide");$("#btnStop").classList.remove("hide");
@@ -370,11 +412,12 @@ async function start(){
 }
 function stopUI(){$("#setCard").classList.remove("hide");$("#btnStop2").classList.add("hide");$("#btnStart").classList.remove("hide");$("#btnStop").classList.add("hide");$("#dock").classList.add("hide");releaseMic()}
 function stop(){want=false;stopPlayback();try{ws&&ws.close()}catch(e){}stopUI();status("未連線");saveSession(true);setResume("");sys("下課。紀錄已存到「上課紀錄」"+(SYNC.on?"並同步到雲端。":"（只存在這台裝置）。"))}
+$("#btnReview").onclick=startReview;
 $("#btnStart").onclick=start;$("#btnStop").onclick=stop;$("#btnStop2").onclick=stop;
 $("#btnTxt").onclick=()=>{const t=$("#txt").value.trim();if(!t)return;$("#txt").value="";sendText(t)};
 $("#txt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();$("#btnTxt").click()}});
 $("#btnBeep").onclick=()=>{const c=ensureOut();const o=c.createOscillator(),g=c.createGain();g.gain.value=0.2;o.frequency.value=660;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+0.4);sys("播放測試音（"+c.state+"），收到老師語音 "+audioChunks+" 段。聽不到請檢查手機音量或靜音模式。")};
-$("#btnAgain").onclick=()=>sendText(CFG.mode==="shadow"?"Next sentence, please.":"Please continue.",false);
+$("#btnAgain").onclick=()=>REVIEW?(REVIEW.i++,reviewSend()):sendText(CFG.mode==="shadow"?"Next sentence, please.":"Please continue.",false);
 
 function updateMicLabel(){setMicUI(sending)}
 function setMicUI(on){const b=$("#mic");b.classList.toggle("live",on);b.textContent=CFG.talk==="ptt"?(on?"放開＝說完":"按住說話"):(on?"🎙 收音中（點一下暫停）":"點一下開始說話")}
@@ -461,6 +504,7 @@ async function syncPush(){
 }
 function syncUI(){$("#btnSync").textContent=SYNC.on?"立即同步":"連結 Google 帳號";$("#btnSyncOff").classList.toggle("hide",!SYNC.on);if(!SYNC.on)syncStat("未連結（紀錄只存在這台裝置）")}
 $("#btnSync").onclick=async()=>{try{await getToken(!SYNC.on,true);SYNC.on=true;LS.set("coach_sync",true);syncUI();await syncPull()}catch(e){syncStat("連結失敗："+e.message)}};
+$("#keyFromSync").onclick=()=>$("#btnSync").click();
 $("#btnSyncOff").onclick=()=>{SYNC.on=false;SYNC.token=null;SYNC.fileId=null;LS.set("coach_sync",false);syncUI()};
 syncUI();renderHist();setResume(CFG.resumeId);if(SYNC.on)syncStat("按「立即同步」載入其他裝置的紀錄");
 if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
